@@ -5,4 +5,5 @@
     <color name="purple">#9624D6</color>
     <color name="gray">#E9DFEB</color>
     <color name="button">#5A3166</color>
+    <color name="dialog_bg">#1E1226</color>
 </resources>

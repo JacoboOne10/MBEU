@@ -29,49 +29,49 @@
         </activity>
         <activity
             android:name=".Inicio"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.MBEU"
             android:windowSoftInputMode="adjustResize">
         </activity>
         <activity
             android:name=".Calendario"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.MBEU"
             android:windowSoftInputMode="adjustResize">
         </activity>
         <activity
             android:name=".Semana"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.MBEU"
             android:windowSoftInputMode="adjustResize">
         </activity>
         <activity
             android:name=".Encuesta"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.MBEU"
             android:windowSoftInputMode="adjustResize">
         </activity>
         <activity
             android:name=".Meditacion"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.MBEU"
             android:windowSoftInputMode="adjustResize">
         </activity>
         <activity
             android:name=".Video"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.MBEU"
             android:windowSoftInputMode="adjustResize">
         </activity>
         <activity
             android:name=".Musica"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.MBEU"
             android:windowSoftInputMode="adjustResize">
         </activity>
         <activity
             android:name=".Settings"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.MBEU"
             android:windowSoftInputMode="adjustResize">
         </activity>

@@ -137,12 +137,12 @@ public class SleepDB extends SQLiteOpenHelper {
         return midnight + (long) (hours * 3600000.0);
     }
 
-    private void insertRow(SQLiteDatabase db, String date, long sleepMs, long wakeMs) {
+    private long insertRow(SQLiteDatabase db, String date, long sleepMs, long wakeMs) {
         ContentValues v = new ContentValues();
         v.put("date", date);
         v.put("sleep_time", sleepMs);
         v.put("wake_time", wakeMs);
-        db.insert("sleep_data", null, v);
+        return db.insert("sleep_data", null, v);
     }
 
     // Devuelve semana (7 vals) con el total de horas de cada día, 0 si no hay datos
@@ -254,17 +254,37 @@ public class SleepDB extends SQLiteOpenHelper {
         return context.getSharedPreferences("perfil_" + email, Context.MODE_PRIVATE);
     }
     /*Detectar sueño por partes*/
-    public boolean addSleep(long sleepMs, long wakeMs) {
+    /** Guarda un sueño detectado. Devuelve el id del registro, o -1 si se traslapa con otro. */
+    public long addSleep(long sleepMs, long wakeMs) {
         SQLiteDatabase db = getWritableDatabase();
-        Cursor c = db.rawQuery(
-                "SELECT 1 FROM sleep_data WHERE sleep_time < ? AND wake_time > ? LIMIT 1",
-                new String[]{String.valueOf(wakeMs), String.valueOf(sleepMs)});
-        boolean overlaps = c.moveToFirst();
-        c.close();
-        if (overlaps) return false;
+        if (overlaps(db, sleepMs, wakeMs, -1)) return -1;
+        return insertRow(db, DATE_FMT.format(new Date(wakeMs)), sleepMs, wakeMs);
+    }
 
-        insertRow(db, DATE_FMT.format(new Date(wakeMs)), sleepMs, wakeMs);
-        return true;
+    /** Cambia las horas de un registro. Devuelve false si se traslapa con otro registro. */
+    public boolean updateSleep(long id, long sleepMs, long wakeMs) {
+        SQLiteDatabase db = getWritableDatabase();
+        if (overlaps(db, sleepMs, wakeMs, id)) return false;
+        ContentValues v = new ContentValues();
+        v.put("date", DATE_FMT.format(new Date(wakeMs)));
+        v.put("sleep_time", sleepMs);
+        v.put("wake_time", wakeMs);
+        return db.update("sleep_data", v, "id = ?", new String[]{String.valueOf(id)}) > 0;
+    }
+
+    /** Borra un registro de sueño. */
+    public void deleteSleep(long id) {
+        getWritableDatabase().delete("sleep_data", "id = ?", new String[]{String.valueOf(id)});
+    }
+
+    /** ¿Hay otro registro (distinto de ignoreId) que se traslape con este horario? */
+    private boolean overlaps(SQLiteDatabase db, long sleepMs, long wakeMs, long ignoreId) {
+        Cursor c = db.rawQuery(
+                "SELECT 1 FROM sleep_data WHERE sleep_time < ? AND wake_time > ? AND id != ? LIMIT 1",
+                new String[]{String.valueOf(wakeMs), String.valueOf(sleepMs), String.valueOf(ignoreId)});
+        boolean result = c.moveToFirst();
+        c.close();
+        return result;
     }
 
     /*CSV*/

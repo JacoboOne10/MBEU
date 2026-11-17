@@ -4,13 +4,14 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import androidx.appcompat.app.AppCompatActivity;
 import android.widget.TextView;
-import android.widget.Toast;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
+
+import java.util.List;
 
 public class Inicio extends AppCompatActivity {
 
@@ -46,18 +47,26 @@ public class Inicio extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        updateHeader();
+        // Si se detectó sueño nuevo, la persona lo confirma, lo ajusta o lo descarta
+        List<long[]> detected = DetectarSueno.detectAndSave(this);
+        if (!detected.isEmpty()) {
+            updateHeader();                                   // racha con lo recién detectado
+            ConfirmarSueno.show(this, detected, this::updateHeader);   // y otra vez al terminar
+        }
+        RecordatoriosProgramados.schedule(this);
+    }
+
+    /** Pone el nombre y la racha de días durmiendo adecuadamente. */
+    private void updateHeader() {
         SharedPreferences prefs = SleepDB.profile(this);
         ((TextView) findViewById(R.id.username)).setText(prefs.getString("nombre", "Usuario"));
         int age = prefs.getInt("edad", 20);
         int streak = new SleepDB(this).getStreak(age);
         ((TextView) findViewById(R.id.tvStreak)).setText(String.valueOf(streak));
         ((TextView) findViewById(R.id.textView7)).setText(streak == 1 ? "Día" : "Días");
-        int saved = DetectarSueno.detectAndSave(this);
-        if (saved > 0) {
-            Toast.makeText(this, "Registramos tu sueño", Toast.LENGTH_LONG).show();
-        }
-        RecordatoriosProgramados.schedule(this);
     }
+
     private final ActivityResultLauncher<String> notificationPermission =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
                 if (!granted) {
