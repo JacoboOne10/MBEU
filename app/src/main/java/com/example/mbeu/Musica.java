@@ -86,11 +86,11 @@ public class Musica extends AppCompatActivity implements View.OnClickListener {
 
         // Para agregar pistas: copia el audio a res/raw y agrega una línea aquí
         songs = new ArrayList<>();
-        songs.add(song("Lluvia suave", R.raw.ruido_blanco));
-        songs.add(song("Olas del mar", R.raw.ruido_blanco));
-        songs.add(song("Ruido Blanco", R.raw.ruido_blanco));
-        songs.add(song("Ruido Café", R.raw.ruido_blanco));
-        songs.add(song("Música a baja frecuencia", R.raw.ruido_blanco));
+        songs.add(song("Lluvia suave", R.raw.lluvia_suave));
+        songs.add(song("Olas del mar", R.raw.olas_del_mar));
+        songs.add(song("Ruido blanco", R.raw.ruido_blanco));
+        songs.add(song("Ruido café", R.raw.ruido_cafe));
+        songs.add(song("Piano", R.raw.piano));
 
         adapter = new SongAdapter(this, songs, favorites);
         list.setAdapter(adapter);
