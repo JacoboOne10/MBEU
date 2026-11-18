@@ -1,43 +1,46 @@
 package com.example.mbeu;
-import android.content.Intent;
+
+import android.content.Context;
 import android.graphics.Color;
-import android.os.Bundle;
-import androidx.appcompat.app.AppCompatActivity;
-import com.github.mikephil.charting.components.XAxis;
-import com.github.mikephil.charting.formatter.IndexAxisValueFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Calendar;
-import com.github.mikephil.charting.components.YAxis;
-import com.github.mikephil.charting.formatter.ValueFormatter;
 import android.graphics.Paint;
-import android.view.View;
-import android.widget.Button;
 
 import com.github.mikephil.charting.charts.CandleStickChart;
+import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.LimitLine;
+import com.github.mikephil.charting.components.XAxis;
+import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.CandleData;
 import com.github.mikephil.charting.data.CandleDataSet;
 import com.github.mikephil.charting.data.CandleEntry;
-import java.util.Locale;
-import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.formatter.IndexAxisValueFormatter;
+import com.github.mikephil.charting.formatter.ValueFormatter;
 
-public class Semana extends AppCompatActivity implements View.OnClickListener {
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * Dibuja las gráficas del desglose semanal debajo del calendario:
+ * barras con el horario de cada noche y líneas con las horas dormidas por día.
+ */
+public class GraficasSemana {
     private static final int GREEN = SleepDB.GREEN;
     private static final int ORANGE = SleepDB.ORANGE;
     private static final int RED = SleepDB.RED;
-    private Button btnAtras;
+    private static final String[] DAYS = {"Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"};
+
     /** Limite de horas para cada grupo de edad */
-    private float[] getThresholds(int age) {
+    private static float[] getThresholds(int age) {
         float idealMin = SleepDB.idealHours(age);
         return new float[]{idealMin, idealMin - 3};
     }
 
-    private void addGroup(CandleData data, List<CandleEntry> entries,
-                          List<Integer> textColors, int color) {
+    private static void addGroup(CandleData data, List<CandleEntry> entries,
+                                 List<Integer> textColors, int color) {
         if (entries.isEmpty()) return;
         CandleDataSet set = new CandleDataSet(entries, "");
         set.setIncreasingColor(color);
@@ -59,21 +62,14 @@ public class Semana extends AppCompatActivity implements View.OnClickListener {
         data.addDataSet(set);
     }
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_semana);
+    /** Dibuja la semana (de lunes a domingo) que contiene el día dayMillis. */
+    public static void draw(Context context, CandleStickChart barChart, LineChart lineChart,
+                            long dayMillis) {
+        SleepDB dbHelper = new SleepDB(context);
 
-        btnAtras = (Button) findViewById(R.id.semanaBackButton);
-        btnAtras.setOnClickListener(this);
-
-        CandleStickChart barChart = findViewById(R.id.barChart);
-        SleepDB dbHelper = new SleepDB(this);
-
-// Lunes de esta semana a las 00:00
+        // Lunes de esa semana a las 00:00
         Calendar cal = Calendar.getInstance();
-        long dayMillis = getIntent().getLongExtra("dayMillis", -1L);
-        if (dayMillis != -1L) cal.setTimeInMillis(dayMillis);   // semana del día tocado
+        cal.setTimeInMillis(dayMillis);
         cal.setFirstDayOfWeek(Calendar.MONDAY);
         cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
         cal.set(Calendar.HOUR_OF_DAY, 0);
@@ -83,7 +79,19 @@ public class Semana extends AppCompatActivity implements View.OnClickListener {
 
         List<float[]> segments = dbHelper.getSegmentsForWeek(cal.getTimeInMillis());
 
-// Por día: total de horas, primera hora de dormir y fin del último tramo
+        // Semana sin registros: se limpian las gráficas y se avisa
+        if (segments.isEmpty()) {
+            for (com.github.mikephil.charting.charts.Chart<?> chart
+                    : new com.github.mikephil.charting.charts.Chart<?>[]{barChart, lineChart}) {
+                chart.clear();
+                chart.setNoDataText("Sin registros esta semana");
+                chart.setNoDataTextColor(Color.WHITE);
+                chart.invalidate();
+            }
+            return;
+        }
+
+        // Por día: total de horas, primera hora de dormir y fin del último tramo
         float[] totals = new float[7];
         float[] firstStart = new float[7];
         float[] lastEnd = new float[7];
@@ -101,10 +109,10 @@ public class Semana extends AppCompatActivity implements View.OnClickListener {
             }
         }
 
-        int age = SleepDB.profile(this).getInt("edad", 20);
+        int age = SleepDB.profile(context).getInt("edad", 20);
         float[] limits = getThresholds(age);
 
-// Barras agrupadas por color; cada grupo guarda también el color del texto de sus barras
+        // Barras agrupadas por color; cada grupo guarda también el color del texto de sus barras
         List<CandleEntry> greenEntries = new ArrayList<>();
         List<CandleEntry> orangeEntries = new ArrayList<>();
         List<CandleEntry> redEntries = new ArrayList<>();
@@ -144,17 +152,16 @@ public class Semana extends AppCompatActivity implements View.OnClickListener {
         addGroup(data, redEntries, redText, RED);
         barChart.setData(data);
 
-// Eje X: los 7 días siempre
+        // Eje X: los 7 días siempre
         XAxis xAxis = barChart.getXAxis();
-        xAxis.setValueFormatter(new IndexAxisValueFormatter(
-                new String[]{"Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"}));
+        xAxis.setValueFormatter(new IndexAxisValueFormatter(DAYS));
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
         xAxis.setGranularity(1f);
         xAxis.setAxisMinimum(-0.5f);
         xAxis.setAxisMaximum(6.5f);
         xAxis.setTextColor(Color.WHITE);
 
-// Eje Y: hora del reloj, de 18:00 a 14:00 (0 = medianoche)
+        // Eje Y: hora del reloj, de 20:00 a 12:00 (0 = medianoche)
         YAxis yAxis = barChart.getAxisLeft();
         yAxis.setInverted(true);          // 20:00 arriba, 12:00 abajo
         yAxis.setAxisMinimum(-4f);        // 20:00
@@ -169,7 +176,8 @@ public class Semana extends AppCompatActivity implements View.OnClickListener {
             }
         });
 
-// Línea punteada en las 0:00
+        // Línea punteada en las 0:00 (se quitan las anteriores para no repetirla al redibujar)
+        yAxis.removeAllLimitLines();
         LimitLine midnight = new LimitLine(0f);
         midnight.setLineColor(Color.WHITE);
         midnight.setLineWidth(1f);
@@ -181,7 +189,7 @@ public class Semana extends AppCompatActivity implements View.OnClickListener {
         barChart.getDescription().setEnabled(false);
         barChart.getLegend().setEnabled(false);
 
-// Sin zoom ni arrastre
+        // Sin zoom ni arrastre
         barChart.setScaleEnabled(false);
         barChart.setPinchZoom(false);
         barChart.setDoubleTapToZoomEnabled(false);
@@ -193,8 +201,6 @@ public class Semana extends AppCompatActivity implements View.OnClickListener {
         barChart.invalidate();
 
         // ---------- Gráfica de líneas: horas dormidas por día ----------
-        LineChart lineChart = findViewById(R.id.lineChart);
-
         List<Entry> lineEntries = new ArrayList<>();
         for (int d = 0; d < 7; d++) {
             if (hasSegment[d]) {                          // los días sin registro no ponen punto
@@ -210,8 +216,7 @@ public class Semana extends AppCompatActivity implements View.OnClickListener {
         lineChart.setData(new LineData(lineSet));
 
         XAxis lineX = lineChart.getXAxis();
-        lineX.setValueFormatter(new IndexAxisValueFormatter(
-                new String[]{"Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"}));
+        lineX.setValueFormatter(new IndexAxisValueFormatter(DAYS));
         lineX.setPosition(XAxis.XAxisPosition.BOTTOM);
         lineX.setGranularity(1f);
         lineX.setAxisMinimum(-0.5f);
@@ -238,12 +243,5 @@ public class Semana extends AppCompatActivity implements View.OnClickListener {
         lineChart.setDragEnabled(false);
         lineChart.setHighlightPerTapEnabled(false);
         lineChart.invalidate();
-    }
-
-    @Override
-    public void onClick(View v) {
-        Intent intent = new Intent(this, Calendario.class);
-        startActivity(intent);
-        finish();
     }
 }

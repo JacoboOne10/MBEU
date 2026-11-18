@@ -204,6 +204,41 @@ public class SleepDB extends SQLiteOpenHelper {
         c.close();
         return result;
     }
+
+    /** Noches de la semana como {id, inicio, fin} en milisegundos, en orden. */
+    public List<long[]> getSleepsForWeek(long mondayMillis) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(mondayMillis);
+        String first = DATE_FMT.format(cal.getTime());
+        cal.add(Calendar.DAY_OF_YEAR, 6);
+        String last = DATE_FMT.format(cal.getTime());
+
+        List<long[]> result = new ArrayList<>();
+        Cursor c = getReadableDatabase().rawQuery(
+                "SELECT id, sleep_time, wake_time FROM sleep_data "
+                        + "WHERE date BETWEEN ? AND ? ORDER BY sleep_time",
+                new String[]{first, last});
+        while (c.moveToNext()) {
+            result.add(new long[]{c.getLong(0), c.getLong(1), c.getLong(2)});
+        }
+        c.close();
+        return result;
+    }
+
+    /** Noches de un día (el día en que despertó) como {id, inicio, fin} en milisegundos. */
+    public List<long[]> getSleepsForDay(long dayMillis) {
+        List<long[]> result = new ArrayList<>();
+        Cursor c = getReadableDatabase().rawQuery(
+                "SELECT id, sleep_time, wake_time FROM sleep_data "
+                        + "WHERE date = ? ORDER BY sleep_time",
+                new String[]{DATE_FMT.format(new Date(dayMillis))});
+        while (c.moveToNext()) {
+            result.add(new long[]{c.getLong(0), c.getLong(1), c.getLong(2)});
+        }
+        c.close();
+        return result;
+    }
+
     /** Horas de sueño ideales (mínimo) según la edad. */
     public static float idealHours(int age) {
         if (age <= 2) return 11;

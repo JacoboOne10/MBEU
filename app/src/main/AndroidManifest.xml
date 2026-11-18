@@ -40,12 +40,6 @@
             android:windowSoftInputMode="adjustResize">
         </activity>
         <activity
-            android:name=".Semana"
-            android:exported="false"
-            android:theme="@style/Theme.MBEU"
-            android:windowSoftInputMode="adjustResize">
-        </activity>
-        <activity
             android:name=".Encuesta"
             android:exported="false"
             android:theme="@style/Theme.MBEU"

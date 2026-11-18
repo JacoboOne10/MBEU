@@ -1,25 +1,27 @@
 package com.example.mbeu;
 
-import android.view.LayoutInflater;
-import android.view.View;
-import android.widget.TextView;
-import androidx.appcompat.app.AlertDialog;
-import androidx.core.content.ContextCompat;
 import android.app.TimePickerDialog;
 import android.content.Context;
 import android.text.format.DateFormat;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * Pregunta a la persona si el sueño que se detectó es correcto.
- * Opciones: confirmarlo, ajustar las horas o descartarlo.
- * Si cierra el diálogo sin elegir, el sueño se queda como está (se toma como correcto).
+ * Pregunta a la persona si el sueño que se detectó es correcto (confirmar, ajustar o descartar)
+ * y también sirve para editar o eliminar noches pasadas desde el calendario y el desglose semanal.
+ * Si cierra el diálogo de confirmación sin elegir, el sueño se queda como está.
  */
 public class ConfirmarSueno {
 
@@ -29,18 +31,44 @@ public class ConfirmarSueno {
     private final Context context;
     private final List<long[]> pending;     // cada uno: {id, inicio, fin}
     private final Runnable onFinished;
+    private final boolean editMode;         // true = editar una noche pasada (sin pregunta inicial)
     private int index = 0;
 
     /** Muestra uno por uno los sueños detectados. Al terminar llama a onFinished. */
     public static void show(Context context, List<long[]> sleeps, Runnable onFinished) {
         if (sleeps.isEmpty()) return;
-        new ConfirmarSueno(context, sleeps, onFinished).next();
+        new ConfirmarSueno(context, sleeps, onFinished, false).next();
     }
 
-    private ConfirmarSueno(Context context, List<long[]> pending, Runnable onFinished) {
+    /** Edita las horas de una noche ya guardada. Al terminar llama a onFinished. */
+    public static void edit(Context context, long[] sleep, Runnable onFinished) {
+        List<long[]> one = new ArrayList<>();
+        one.add(sleep);
+        new ConfirmarSueno(context, one, onFinished, true).pickSleepTime(sleep);
+    }
+
+    /** Elimina una noche ya guardada, con confirmación. Al terminar llama a onFinished. */
+    public static void delete(Context context, long[] sleep, Runnable onFinished) {
+        new MaterialAlertDialogBuilder(context)
+                .setTitle("Eliminar registro")
+                .setMessage("¿Eliminar el sueño de " + formatTime(sleep[1])
+                        + " a " + formatTime(sleep[2]) + "?")
+                .setPositiveButton("Eliminar", (dialog, which) -> {
+                    new SleepDB(context).deleteSleep(sleep[0]);
+                    DetectarSueno.discard(context, sleep[1]);       // que no se vuelva a detectar
+                    Toast.makeText(context, "Registro eliminado", Toast.LENGTH_SHORT).show();
+                    if (onFinished != null) onFinished.run();
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private ConfirmarSueno(Context context, List<long[]> pending, Runnable onFinished,
+                           boolean editMode) {
         this.context = context;
         this.pending = pending;
         this.onFinished = onFinished;
+        this.editMode = editMode;
     }
 
     /** Pasa al siguiente sueño; si ya no hay más, avisa que terminó. */
@@ -86,20 +114,17 @@ public class ConfirmarSueno {
         dialog.show();
     }
 
-    private String formatDuration(long millis) {
-        long minutes = millis / 60000L;
-        if (minutes < 60) return minutes + " min";
-        long h = minutes / 60;
-        long m = minutes % 60;
-        return m == 0 ? h + " h" : h + " h " + m + " min";
-    }
-
     /** "No dormí": borra el registro y lo recuerda para no detectarlo otra vez. */
     private void discard(long[] sleep) {
         new SleepDB(context).deleteSleep(sleep[0]);
         DetectarSueno.discard(context, sleep[1]);
         Toast.makeText(context, "Registro eliminado", Toast.LENGTH_SHORT).show();
         advance();
+    }
+
+    /** Si se cancela un selector: al detectar vuelve a la pregunta; al editar se abandona. */
+    private void backToStart(long[] sleep) {
+        if (!editMode) ask(sleep);
     }
 
     /** Paso 1 de ajustar: la hora a la que se durmió. */
@@ -111,7 +136,7 @@ public class ConfirmarSueno {
                 c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE),
                 DateFormat.is24HourFormat(context));
         picker.setTitle("¿A qué hora te dormiste?");
-        picker.setOnCancelListener(dialog -> ask(sleep));      // si cancela, vuelve a la pregunta
+        picker.setOnCancelListener(dialog -> backToStart(sleep));
         picker.show();
     }
 
@@ -124,7 +149,7 @@ public class ConfirmarSueno {
                 c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE),
                 DateFormat.is24HourFormat(context));
         picker.setTitle("¿A qué hora despertaste?");
-        picker.setOnCancelListener(dialog -> ask(sleep));
+        picker.setOnCancelListener(dialog -> backToStart(sleep));
         picker.show();
     }
 
@@ -162,14 +187,24 @@ public class ConfirmarSueno {
 
         if (error != null) {
             Toast.makeText(context, error, Toast.LENGTH_LONG).show();
-            ask(sleep);                                        // el registro sigue como estaba
+            // El registro sigue como estaba: se vuelve a intentar
+            if (editMode) pickSleepTime(sleep); else ask(sleep);
             return;
         }
         Toast.makeText(context, "Horas actualizadas", Toast.LENGTH_SHORT).show();
         advance();
     }
 
-    private String formatTime(long millis) {
-        return new java.text.SimpleDateFormat("h:mm a", new Locale("es", "MX")).format(new java.util.Date(millis));
+    private static String formatTime(long millis) {
+        return new java.text.SimpleDateFormat("h:mm a", new Locale("es", "MX"))
+                .format(new java.util.Date(millis));
+    }
+
+    private static String formatDuration(long millis) {
+        long minutes = millis / 60000L;
+        if (minutes < 60) return minutes + " min";
+        long h = minutes / 60;
+        long m = minutes % 60;
+        return m == 0 ? h + " h" : h + " h " + m + " min";
     }
 }
